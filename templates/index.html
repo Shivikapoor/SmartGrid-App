@@ -1,0 +1,220 @@
+<!-- <!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>SmartGrid Mini — Bill Predictor</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>SmartGrid — Mini Bill Predictor</h1>
+
+    <section class="controls">
+      <h3>Inputs</h3>
+      <label>Existing monthly kWh (sum of zones): <input id="existing_kwh" type="number" step="0.1" value="250"></label>
+      <label>Rate per kWh (₹): <input id="rate" type="number" step="0.1" value="8"></label>
+      <label>Days in month: <input id="days" type="number" value="30"></label>
+
+      <h4>Add a new appliance</h4>
+      <label>Name: <input id="ap_name" type="text" placeholder="e.g., Water Heater"></label>
+      <label>Power (W): <input id="ap_power" type="number" value="2000"></label>
+      <label>Hours/day: <input id="ap_hours" type="number" value="2"></label>
+      <button id="add_appliance">Add Appliance</button>
+    </section>
+
+    <section class="appliance-list">
+      <h3>Appliances to add</h3>
+      <ul id="appliances_ul"></ul>
+      <button id="predict_btn">Predict Bill</button>
+    </section>
+
+    <section class="results">
+      <h3>Prediction</h3>
+      <div id="prediction_text">--</div>
+    </section>
+
+    <section class="charts">
+      <canvas id="lineChart" width="800" height="300"></canvas>
+      <canvas id="barChart" width="400" height="300"></canvas>
+    </section>
+  </div>
+
+  <script src="/static/chart-handler.js"></script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ SmartGrid Energy Optimizer</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <header>
+    <h1>⚡ SmartGrid Energy Optimizer</h1>
+    <p>Analyze your energy usage, predict future bills, and get smart appliance advice.</p>
+  </header>
+
+  <div class="container">
+    <!-- Input Section -->
+    <div class="card input-card">
+      <h2>Enter Your Usage Details</h2>
+      <form id="predictForm">
+        <label>Existing Monthly Usage (kWh)</label>
+        <input type="number" step="0.1" id="existing" placeholder="e.g. 250" required>
+
+        <label>Rate per kWh (₹)</label>
+        <input type="number" step="0.1" id="rate" placeholder="e.g. 8" required>
+
+        <label>New Appliance Power (Watts)</label>
+        <input type="number" id="power" placeholder="e.g. 1500" required>
+
+        <label>Usage Hours per Day</label>
+        <input type="number" step="0.1" id="hours" placeholder="e.g. 4" required>
+
+        <label>Days per Month</label>
+        <input type="number" id="days" placeholder="e.g. 30" required>
+
+        <button type="submit">🔮 Predict Bill</button>
+      </form>
+    </div>
+
+    <!-- Result Section -->
+    <div class="card result-card" id="resultCard" style="display:none;">
+      <h2>Prediction Results</h2>
+      <div id="resultText"></div>
+      <canvas id="resultChart"></canvas>
+    </div>
+
+    <!-- Advice Section -->
+    <div class="card advice-card" id="adviceCard" style="display:none;">
+      <h2>💡 Smart Advice</h2>
+      <p id="adviceText"></p>
+      <button type="submit">💡Smart brand Suggestions</button>
+    </div>
+  </div>
+
+  <footer>
+    <p>Made with ❤️ for Smart Energy Awareness</p>
+  </footer>
+
+  <script>
+    const form = document.getElementById('predictForm');
+    const resultCard = document.getElementById('resultCard');
+    const adviceCard = document.getElementById('adviceCard');
+    let chart = null;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const existing = parseFloat(document.getElementById('existing').value);
+      const rate = parseFloat(document.getElementById('rate').value);
+      const power = parseFloat(document.getElementById('power').value);
+      const hours = parseFloat(document.getElementById('hours').value);
+      const days = parseFloat(document.getElementById('days').value);
+
+      const response = await fetch('/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          existing_kwh: existing,
+          rate: rate,
+          days_in_month: days,
+          appliances: [{
+            name: "Custom Appliance",
+            power_w: power,
+            hours_per_day: hours,
+            days: days
+          }]
+        })
+      });
+
+      const data = await response.json();
+      if (data.status === 'ok') {
+        resultCard.style.display = 'block';
+        adviceCard.style.display = 'block';
+        document.getElementById('resultText').innerHTML = `
+          <h3>Total Predicted Bill: <span>₹${data.predicted_bill.toFixed(2)}</span></h3>
+          <p>Current Bill: ₹${(existing * rate).toFixed(2)}</p>
+          <p>Extra due to new appliance: <strong>₹${data.extra_cost.toFixed(2)}</strong></p>
+        `;
+
+        // Update chart
+        const ctx = document.getElementById('resultChart').getContext('2d');
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Current Usage', 'Predicted Usage'],
+            datasets: [{
+              label: 'kWh Consumption',
+              data: [existing, data.predicted_total_kwh],
+              backgroundColor: ['#4CAF50', '#ff9800']
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              title: { display: true, text: 'Energy Usage Comparison' }
+            }
+          }
+        });
+
+        // Smart advice
+        let advice = "";
+        if (data.extra_cost < 100) {
+          advice = "No significant change — your energy usage remains optimal.";
+        }
+        else if (data.extra_cost <= 100) {
+          advice = "Slight increase detected. Try turning off appliances fully instead of standby mode.";
+        }
+        else if (data.extra_cost <= 200) {
+          advice = "Your bill has gone up a bit. Consider using the new appliance for shorter durations or during off-peak hours.";
+        }
+        else if (data.extra_cost <= 300) {
+          advice = "Moderate increase noticed. Avoid running multiple high-power appliances at once.";
+        }
+        else if (data.extra_cost <= 400) {
+          advice = "Noticeable rise! Using energy-efficient appliances or smart plugs can help reduce cost.";
+        }
+        else if (data.extra_cost <= 500) {
+          advice = "Your new appliance adds a heavy load. Schedule its usage during off-peak times to save money.";
+        }
+        else if (data.extra_cost <= 600) {
+          advice = "Your energy cost is rising. Upgrade to 5-star rated appliances for better efficiency.";
+        }
+        else if (data.extra_cost <= 700) {
+          advice = "Significant jump detected. Consider spreading appliance usage throughout the day.";
+        }
+        else if (data.extra_cost <= 800) {
+          advice = "High increase in bill! Check if any appliance is running unnecessarily or consuming too much power.";
+        }
+        else if (data.extra_cost <= 900) {
+          advice = "Your energy consumption is quite high. Evaluate the necessity of heavy appliances or use automation tools.";
+        }
+        else {
+          advice = "Severe increase (>₹1000)! You should consider solar options, appliance upgrades, and smart scheduling to reduce dependency on grid power.";
+        }
+        document.getElementById('adviceText').innerText = advice;
+      } else {
+        alert("Error: " + data.error);
+      }
+    });
+  </script>
+</body>
+
+</html>
