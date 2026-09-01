@@ -1,2 +1,2 @@
-Lie link for the App:
+Live link for the App:
 https://smartgrid-app.onrender.com/
